@@ -109,8 +109,8 @@ SyslogIdentifier=riven
 WantedBy=multi-user.target
 EOF
 
-echo -e "${WARN} Please edit the database connection string in /etc/systemd/system/riven.service"
-echo -e "${WARN} Replace YOUR_POSTGRES_IP with your actual PostgreSQL LXC IP address"
+echo -e "${INFO} Please edit the database connection string in /etc/systemd/system/riven.service"
+echo -e "${INFO} Replace YOUR_POSTGRES_IP with your actual PostgreSQL LXC IP address"
 
 systemctl enable -q riven
 msg_ok "Created Service"
@@ -169,5 +169,5 @@ $STD apt-get -y autoremove
 $STD apt-get -y autoclean
 msg_ok "Cleaned"
 
-echo -e "${WARN} Important: You need to edit the database connection in /etc/systemd/system/riven.service"
-echo -e "${WARN} After editing, start the services with: systemctl start riven && systemctl start riven-frontend"
+echo -e "${INFO} Important: You need to edit the database connection in /etc/systemd/system/riven.service"
+echo -e "${INFO} After editing, start the services with: systemctl start riven && systemctl start riven-frontend"
