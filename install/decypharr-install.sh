@@ -24,11 +24,6 @@ touch /app/logs/decypharr.log
 chmod 666 /app/logs/decypharr.log
 msg_ok "Created Directory Structure"
 
-msg_info "Creating Non-Root User"
-groupadd -g 65532 nonroot
-useradd -u 65532 -g nonroot -s /bin/false nonroot
-msg_ok "Created Non-Root User"
-
 msg_info "Building Debrid-Blackhole"
 cd /tmp || exit
 git clone https://github.com/sirrobot01/debrid-blackhole.git
@@ -46,9 +41,9 @@ CGO_ENABLED=0 go build -trimpath -ldflags="-w -s" \
   -o /usr/bin/healthcheck cmd/healthcheck/main.go
 
 # Set permissions
-chown nonroot:nonroot /usr/bin/blackhole /usr/bin/healthcheck
+chown 1605:1605 /usr/bin/blackhole /usr/bin/healthcheck
 chmod +x /usr/bin/blackhole /usr/bin/healthcheck
-chown -R nonroot:nonroot /app
+chown -R 1605:1605 /app
 msg_ok "Built Debrid-Blackhole"
 
 msg_info "Creating Service"
@@ -59,8 +54,8 @@ After=network.target
 
 [Service]
 Type=simple
-User=nonroot
-Group=nonroot
+User=1605
+Group=1605
 Environment="LOG_PATH=/app/logs"
 ExecStart=/usr/bin/blackhole --config /app
 Restart=on-failure
@@ -82,8 +77,8 @@ After=debrid-blackhole.service
 
 [Service]
 Type=oneshot
-User=nonroot
-Group=nonroot
+User=1605
+Group=1605
 ExecStart=/usr/bin/healthcheck
 SyslogIdentifier=debrid-blackhole-healthcheck
 
