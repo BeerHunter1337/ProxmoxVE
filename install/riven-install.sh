@@ -119,18 +119,21 @@ msg_ok "Created Service"
 
 msg_info "Installing Node.js for the frontend"
 curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-$STD apt-get install -y nodejs
+apt-get install -y nodejs
 msg_ok "Installed Node.js"
 
 msg_info "Setting Up Frontend"
-cd /riven || exit
-mkdir -p frontend
-cd frontend || exit
+mkdir -p /riven/frontend
+cd /riven/frontend || exit
 
 # Clone the frontend repository
 git clone https://github.com/rivenmedia/riven-frontend.git .
-$STD npm install
-$STD npm run build
+
+# Run npm commands without using $STD
+msg_info "Installing npm packages"
+su - mediauser -c "cd /riven/frontend && npm install"
+msg_info "Building frontend"
+su - mediauser -c "cd /riven/frontend && npm run build"
 
 # Create frontend service
 cat <<EOF >/etc/systemd/system/riven-frontend.service
@@ -167,8 +170,8 @@ customize
 
 msg_info "Cleaning up"
 rm -rf /tmp/riven
-$STD apt-get -y autoremove
-$STD apt-get -y autoclean
+apt-get -y autoremove
+apt-get -y autoclean
 msg_ok "Cleaned"
 
 echo -e "${INFO} Important: You need to edit the database connection in /etc/systemd/system/riven.service"
