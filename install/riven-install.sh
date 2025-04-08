@@ -61,18 +61,19 @@ source /app/.venv/bin/activate
 export POETRY_VIRTUALENVS_IN_PROJECT=1
 export POETRY_VIRTUALENVS_CREATE=1
 export POETRY_NO_INTERACTION=1
-$STD poetry install --without dev --no-root
+$STD poetry install --without dev
 
-# Copy application files
-cp -r src/ /riven/
-cp pyproject.toml poetry.lock /riven/
+# Copy the entire repository to ensure all modules are available
+cp -r * /riven/
+cp .* /riven/ 2>/dev/null || true
 
 # Create entrypoint script
 cat <<'EOF' >/riven/entrypoint.sh
 #!/bin/bash
 source /app/.venv/bin/activate
 cd /riven
-python -m src.main
+export PYTHONPATH=/riven
+python backend/main.py
 EOF
 chmod +x /riven/entrypoint.sh
 
@@ -99,6 +100,7 @@ Environment="PUID=1000"
 Environment="PGID=1000"
 Environment="TZ=Etc/UTC"
 Environment="RIVEN_FORCE_ENV=true"
+Environment="PYTHONPATH=/riven"
 Environment="RIVEN_DATABASE_HOST=postgresql+psycopg2://postgres:postgres@YOUR_POSTGRES_IP:5432/riven"
 ExecStart=/riven/entrypoint.sh
 Restart=on-failure
@@ -115,36 +117,20 @@ echo -e "${INFO} Replace YOUR_POSTGRES_IP with your actual PostgreSQL LXC IP add
 systemctl enable -q riven
 msg_ok "Created Service"
 
+msg_info "Installing Node.js for the frontend"
+curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+$STD apt-get install -y nodejs
+msg_ok "Installed Node.js"
+
 msg_info "Setting Up Frontend"
-cd /tmp || exit
-mkdir -p /riven/frontend
-cd /riven/frontend || exit
+cd /riven || exit
+mkdir -p frontend
+cd frontend || exit
 
-# Download the frontend release - using a more reliable method
-msg_info "Downloading frontend"
-FRONTEND_URL="https://github.com/rivenmedia/riven-frontend/releases/latest/download/riven-frontend.tar.gz"
-if ! wget -q "$FRONTEND_URL" -O frontend.tar.gz; then
-  msg_error "Failed to download frontend, trying alternative URL"
-  FRONTEND_URL="https://github.com/rivenmedia/riven-frontend/releases/download/latest/riven-frontend.tar.gz"
-  if ! wget -q "$FRONTEND_URL" -O frontend.tar.gz; then
-    msg_error "Failed to download frontend"
-    # Create an empty directory to prevent service failures
-    mkdir -p /riven/frontend/public
-    touch /riven/frontend/server.js
-    echo 'console.log("Frontend download failed, please install manually");' >/riven/frontend/server.js
-  else
-    tar -xzf frontend.tar.gz
-    rm frontend.tar.gz
-    msg_ok "Frontend downloaded and extracted"
-  fi
-else
-  tar -xzf frontend.tar.gz
-  rm frontend.tar.gz
-  msg_ok "Frontend downloaded and extracted"
-fi
-
-# Set ownership for frontend files
-chown -R 1605:1605 /riven/frontend
+# Clone the frontend repository
+git clone https://github.com/rivenmedia/riven-frontend.git .
+$STD npm install
+$STD npm run build
 
 # Create frontend service
 cat <<EOF >/etc/systemd/system/riven-frontend.service
@@ -159,7 +145,9 @@ Group=1605
 WorkingDirectory=/riven/frontend
 Environment="PORT=3000"
 Environment="TZ=Etc/UTC"
-ExecStart=/usr/bin/node /riven/frontend/server.js
+Environment="ORIGIN=http://localhost:3000"
+Environment="BACKEND_URL=http://127.0.0.1:8080"
+ExecStart=/usr/bin/node build
 Restart=on-failure
 RestartSec=5
 SyslogIdentifier=riven-frontend
@@ -168,11 +156,8 @@ SyslogIdentifier=riven-frontend
 WantedBy=multi-user.target
 EOF
 
-# Install Node.js for the frontend
-msg_info "Installing Node.js"
-curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-$STD apt-get install -y nodejs
-msg_ok "Installed Node.js"
+# Set ownership for frontend files
+chown -R 1605:1605 /riven/frontend
 
 systemctl enable -q riven-frontend
 msg_ok "Set Up Frontend"
