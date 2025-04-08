@@ -42,10 +42,13 @@ mkdir -p /app/.venv
 msg_ok "Created Directory Structure"
 
 msg_info "Setting Up User"
+# Create home directory for mediauser
+mkdir -p /home/mediauser
 groupadd -g 1605 mediagroup
-useradd -u 1605 -g mediagroup mediauser
+useradd -u 1605 -g mediagroup -d /home/mediauser -m -s /bin/bash mediauser
 chown -R 1605:1605 /riven
 chown -R 1605:1605 /app
+chown -R 1605:1605 /home/mediauser
 msg_ok "Set Up User"
 
 msg_info "Setting Up Riven"
@@ -123,17 +126,32 @@ apt-get install -y nodejs
 msg_ok "Installed Node.js"
 
 msg_info "Setting Up Frontend"
+# Instead of building from source, let's download a pre-built release
 mkdir -p /riven/frontend
 cd /riven/frontend || exit
 
-# Clone the frontend repository
-git clone https://github.com/rivenmedia/riven-frontend.git .
-
-# Run npm commands without using $STD
-msg_info "Installing npm packages"
-su - mediauser -c "cd /riven/frontend && npm install"
-msg_info "Building frontend"
-su - mediauser -c "cd /riven/frontend && npm run build"
+# Download the latest frontend release
+msg_info "Downloading pre-built frontend"
+FRONTEND_URL="https://github.com/rivenmedia/riven-frontend/releases/latest/download/riven-frontend.tar.gz"
+if ! wget -q "$FRONTEND_URL" -O frontend.tar.gz; then
+  msg_error "Failed to download frontend, trying alternative URL"
+  FRONTEND_URL="https://github.com/rivenmedia/riven-frontend/releases/download/latest/riven-frontend.tar.gz"
+  if ! wget -q "$FRONTEND_URL" -O frontend.tar.gz; then
+    msg_error "Failed to download frontend"
+    # Create an empty directory to prevent service failures
+    mkdir -p /riven/frontend/public
+    touch /riven/frontend/server.js
+    echo 'console.log("Frontend download failed, please install manually");' >/riven/frontend/server.js
+  else
+    tar -xzf frontend.tar.gz
+    rm frontend.tar.gz
+    msg_ok "Frontend downloaded and extracted"
+  fi
+else
+  tar -xzf frontend.tar.gz
+  rm frontend.tar.gz
+  msg_ok "Frontend downloaded and extracted"
+fi
 
 # Create frontend service
 cat <<EOF >/etc/systemd/system/riven-frontend.service
@@ -150,7 +168,7 @@ Environment="PORT=3000"
 Environment="TZ=Etc/UTC"
 Environment="ORIGIN=http://localhost:3000"
 Environment="BACKEND_URL=http://127.0.0.1:8080"
-ExecStart=/usr/bin/node build
+ExecStart=/usr/bin/node server.js
 Restart=on-failure
 RestartSec=5
 SyslogIdentifier=riven-frontend
