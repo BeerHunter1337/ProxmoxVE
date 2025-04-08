@@ -41,13 +41,6 @@ mkdir -p /riven/config
 mkdir -p /app/.venv
 msg_ok "Created Directory Structure"
 
-msg_info "Setting Up User"
-# Create home directory for mediauser
-mkdir -p /home/mediauser
-groupadd -g 1605 mediagroup
-useradd -u 1605 -g mediagroup -d /home/mediauser -m -s /bin/bash mediauser
-msg_ok "Set Up User"
-
 msg_info "Setting Up Riven"
 cd /tmp || exit
 git clone https://github.com/rivenmedia/riven.git
@@ -73,18 +66,9 @@ cat <<'EOF' >/riven/entrypoint.sh
 source /app/.venv/bin/activate
 cd /riven
 export PYTHONPATH=/riven
-python backend/main.py
+python src/main.py
 EOF
 chmod +x /riven/entrypoint.sh
-
-# Set proper ownership
-chown -R 1605:1605 /riven
-chown -R 1605:1605 /app
-chown -R 1605:1605 /home/mediauser
-
-# Double check permissions with find
-find /riven -not -user 1605 -exec chown 1605:1605 {} \;
-find /app -not -user 1605 -exec chown 1605:1605 {} \;
 msg_ok "Set Up Riven"
 
 msg_info "Creating Service"
@@ -95,8 +79,6 @@ After=network.target
 
 [Service]
 Type=simple
-User=mediauser
-Group=mediagroup
 WorkingDirectory=/riven
 Environment="PYTHONUNBUFFERED=1"
 Environment="FORCE_COLOR=1"
@@ -162,8 +144,6 @@ After=network.target riven.service
 
 [Service]
 Type=simple
-User=mediauser
-Group=mediagroup
 WorkingDirectory=/riven/frontend
 Environment="PORT=3000"
 Environment="TZ=Etc/UTC"
@@ -178,34 +158,17 @@ SyslogIdentifier=riven-frontend
 WantedBy=multi-user.target
 EOF
 
-# Set ownership for frontend files
-chown -R 1605:1605 /riven/frontend
-find /riven/frontend -not -user 1605 -exec chown 1605:1605 {} \;
-
 systemctl enable -q riven-frontend
 msg_ok "Set Up Frontend"
-
-# Create symbolic link for media directory
-msg_info "Setting up media directory"
-mkdir -p /media/shared
-ln -s /media/shared /riven/media
-chown -R 1605:1605 /media/shared
-msg_ok "Set up media directory"
 
 motd_ssh
 customize
 
 msg_info "Cleaning up"
 rm -rf /tmp/riven
-apt-get -y autoremove
-apt-get -y autoclean
+$STD apt-get -y autoremove
+$STD apt-get -y autoclean
 msg_ok "Cleaned"
-
-# Final permission check
-msg_info "Verifying permissions"
-find /riven -not -user 1605 -exec chown 1605:1605 {} \;
-find /app -not -user 1605 -exec chown 1605:1605 {} \;
-msg_ok "Permissions verified"
 
 echo -e "${INFO} Important: You need to edit the database connection in /etc/systemd/system/riven.service"
 echo -e "${INFO} After editing, start the services with: systemctl start riven && systemctl start riven-frontend"

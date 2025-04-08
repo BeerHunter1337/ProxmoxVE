@@ -50,7 +50,7 @@ function update_script() {
   # Update frontend
   cd /tmp || exit
   rm -rf /tmp/frontend-update
-  git clone https://github.com/rivenmedia/riven-frontend.git /tmp/frontend-update
+  mkdir -p /tmp/frontend-update
   cd /tmp/frontend-update || exit
 
   # Download pre-built frontend
@@ -58,7 +58,6 @@ function update_script() {
   if wget -q "$FRONTEND_URL" -O frontend.tar.gz; then
     mkdir -p /riven/frontend
     tar -xzf frontend.tar.gz -C /riven/frontend
-    chown -R 1605:1605 /riven/frontend
   fi
 
   # Restart services
