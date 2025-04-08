@@ -120,16 +120,31 @@ cd /tmp || exit
 mkdir -p /riven/frontend
 cd /riven/frontend || exit
 
-# Download the latest frontend release
-FRONTEND_URL=$(curl -s https://api.github.com/repos/rivenmedia/riven-frontend/releases/latest | grep "browser_download_url.*tar.gz" | cut -d '"' -f 4)
-if [ -z "$FRONTEND_URL" ]; then
-  msg_error "Failed to get frontend download URL"
+# Download the frontend release - using a more reliable method
+msg_info "Downloading frontend"
+FRONTEND_URL="https://github.com/rivenmedia/riven-frontend/releases/latest/download/riven-frontend.tar.gz"
+if ! wget -q "$FRONTEND_URL" -O frontend.tar.gz; then
+  msg_error "Failed to download frontend, trying alternative URL"
   FRONTEND_URL="https://github.com/rivenmedia/riven-frontend/releases/download/latest/riven-frontend.tar.gz"
+  if ! wget -q "$FRONTEND_URL" -O frontend.tar.gz; then
+    msg_error "Failed to download frontend"
+    # Create an empty directory to prevent service failures
+    mkdir -p /riven/frontend/public
+    touch /riven/frontend/server.js
+    echo 'console.log("Frontend download failed, please install manually");' >/riven/frontend/server.js
+  else
+    tar -xzf frontend.tar.gz
+    rm frontend.tar.gz
+    msg_ok "Frontend downloaded and extracted"
+  fi
+else
+  tar -xzf frontend.tar.gz
+  rm frontend.tar.gz
+  msg_ok "Frontend downloaded and extracted"
 fi
 
-wget -q "$FRONTEND_URL" -O frontend.tar.gz
-tar -xzf frontend.tar.gz
-rm frontend.tar.gz
+# Set ownership for frontend files
+chown -R 1605:1605 /riven/frontend
 
 # Create frontend service
 cat <<EOF >/etc/systemd/system/riven-frontend.service
@@ -154,8 +169,10 @@ WantedBy=multi-user.target
 EOF
 
 # Install Node.js for the frontend
+msg_info "Installing Node.js"
 curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
 $STD apt-get install -y nodejs
+msg_ok "Installed Node.js"
 
 systemctl enable -q riven-frontend
 msg_ok "Set Up Frontend"
