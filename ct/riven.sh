@@ -39,17 +39,35 @@ function update_script() {
   source /app/.venv/bin/activate
 
   # Update dependencies
-  poetry install --without dev --no-root
+  export POETRY_VIRTUALENVS_IN_PROJECT=1
+  export POETRY_VIRTUALENVS_CREATE=1
+  export POETRY_NO_INTERACTION=1
+  poetry install --without dev
 
   # Copy updated files
-  cp -r /tmp/riven-update/src/* /riven/src/
-  cp /tmp/riven-update/pyproject.toml /tmp/riven-update/poetry.lock /riven/
+  cp -r /tmp/riven-update/* /riven/
 
-  # Restart service
+  # Update frontend
+  cd /tmp || exit
+  rm -rf /tmp/frontend-update
+  git clone https://github.com/rivenmedia/riven-frontend.git /tmp/frontend-update
+  cd /tmp/frontend-update || exit
+
+  # Download pre-built frontend
+  FRONTEND_URL="https://github.com/rivenmedia/riven-frontend/releases/latest/download/riven-frontend.tar.gz"
+  if wget -q "$FRONTEND_URL" -O frontend.tar.gz; then
+    mkdir -p /riven/frontend
+    tar -xzf frontend.tar.gz -C /riven/frontend
+    chown -R 1605:1605 /riven/frontend
+  fi
+
+  # Restart services
   systemctl restart riven
+  systemctl restart riven-frontend
 
   msg_info "Cleaning up"
   rm -rf /tmp/riven-update
+  rm -rf /tmp/frontend-update
   msg_ok "Updated $APP LXC"
   exit
 }
@@ -60,5 +78,6 @@ description
 
 msg_ok "Completed Successfully!\n"
 echo -e "${CREATING}${GN}${APP} setup has been successfully initialized!${CL}"
-echo -e "${INFO}${YW} Access it using the following URL:${CL}"
-echo -e "${TAB}${GATEWAY}${BGN}http://${IP}:8080${CL}"
+echo -e "${INFO}${YW} Access it using the following URLs:${CL}"
+echo -e "${TAB}${GATEWAY}${BGN}http://${IP}:8080${CL} (Backend API)"
+echo -e "${TAB}${GATEWAY}${BGN}http://${IP}:3000${CL} (Frontend)"

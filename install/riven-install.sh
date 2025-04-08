@@ -46,9 +46,6 @@ msg_info "Setting Up User"
 mkdir -p /home/mediauser
 groupadd -g 1605 mediagroup
 useradd -u 1605 -g mediagroup -d /home/mediauser -m -s /bin/bash mediauser
-chown -R 1605:1605 /riven
-chown -R 1605:1605 /app
-chown -R 1605:1605 /home/mediauser
 msg_ok "Set Up User"
 
 msg_info "Setting Up Riven"
@@ -82,7 +79,12 @@ chmod +x /riven/entrypoint.sh
 
 # Set proper ownership
 chown -R 1605:1605 /riven
-chown -R 1605:1605 /app/.venv
+chown -R 1605:1605 /app
+chown -R 1605:1605 /home/mediauser
+
+# Double check permissions with find
+find /riven -not -user 1605 -exec chown 1605:1605 {} \;
+find /app -not -user 1605 -exec chown 1605:1605 {} \;
 msg_ok "Set Up Riven"
 
 msg_info "Creating Service"
@@ -93,8 +95,8 @@ After=network.target
 
 [Service]
 Type=simple
-User=1605
-Group=1605
+User=mediauser
+Group=mediagroup
 WorkingDirectory=/riven
 Environment="PYTHONUNBUFFERED=1"
 Environment="FORCE_COLOR=1"
@@ -126,7 +128,6 @@ apt-get install -y nodejs
 msg_ok "Installed Node.js"
 
 msg_info "Setting Up Frontend"
-# Instead of building from source, let's download a pre-built release
 mkdir -p /riven/frontend
 cd /riven/frontend || exit
 
@@ -161,8 +162,8 @@ After=network.target riven.service
 
 [Service]
 Type=simple
-User=1605
-Group=1605
+User=mediauser
+Group=mediagroup
 WorkingDirectory=/riven/frontend
 Environment="PORT=3000"
 Environment="TZ=Etc/UTC"
@@ -179,9 +180,17 @@ EOF
 
 # Set ownership for frontend files
 chown -R 1605:1605 /riven/frontend
+find /riven/frontend -not -user 1605 -exec chown 1605:1605 {} \;
 
 systemctl enable -q riven-frontend
 msg_ok "Set Up Frontend"
+
+# Create symbolic link for media directory
+msg_info "Setting up media directory"
+mkdir -p /media/shared
+ln -s /media/shared /riven/media
+chown -R 1605:1605 /media/shared
+msg_ok "Set up media directory"
 
 motd_ssh
 customize
@@ -191,6 +200,12 @@ rm -rf /tmp/riven
 apt-get -y autoremove
 apt-get -y autoclean
 msg_ok "Cleaned"
+
+# Final permission check
+msg_info "Verifying permissions"
+find /riven -not -user 1605 -exec chown 1605:1605 {} \;
+find /app -not -user 1605 -exec chown 1605:1605 {} \;
+msg_ok "Permissions verified"
 
 echo -e "${INFO} Important: You need to edit the database connection in /etc/systemd/system/riven.service"
 echo -e "${INFO} After editing, start the services with: systemctl start riven && systemctl start riven-frontend"
