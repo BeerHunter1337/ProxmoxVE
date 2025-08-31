@@ -3,7 +3,7 @@ source <(curl -fsSL https://raw.githubusercontent.com/beerhunter1337/ProxmoxVE/m
 # Copyright (c) 2021-2025 beerhunter1337
 # Author: beerhunter1337
 # License: MIT | https://github.com/community-scripts/ProxmoxVE/raw/main/LICENSE
-# Source: https://github.com/sirrobot01/debrid-blackhole
+# Source: https://github.com/sirrobot01/decypharr
 
 APP="Decypharr"
 var_tags="downloader"
@@ -31,29 +31,44 @@ function update_script() {
 
   msg_info "Updating $APP LXC"
   cd /tmp || exit
-  rm -rf /tmp/debrid-blackhole
-  git clone https://github.com/sirrobot01/debrid-blackhole.git
-  cd debrid-blackhole || exit
-  VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "0.0.0")
-  CHANNEL="stable"
+  
+  # Get latest release URL
+  RELEASE_URL=$(curl -s https://api.github.com/repos/sirrobot01/decypharr/releases/latest | grep "browser_download_url.*decypharr_Linux_x86_64.tar.gz" | cut -d '"' -f 4)
+  
+  if [[ -z "$RELEASE_URL" ]]; then
+    msg_error "Failed to get latest release URL"
+    exit
+  fi
+  
+  msg_info "Downloading latest Decypharr release"
+  wget -q "$RELEASE_URL" -O decypharr_Linux_x86_64.tar.gz
+  
+  if [[ ! -f decypharr_Linux_x86_64.tar.gz ]]; then
+    msg_error "Failed to download Decypharr release"
+    exit
+  fi
+  
+  msg_info "Extracting Decypharr binary"
+  tar -xzf decypharr_Linux_x86_64.tar.gz
+  
+  if [[ ! -f decypharr ]]; then
+    msg_error "Decypharr binary not found in archive"
+    exit
+  fi
+  
+  # Stop service before updating binary
+  systemctl stop decypharr
+  
+  # Install binary
+  mv decypharr /usr/bin/decypharr
+  chown nonroot:nonroot /usr/bin/decypharr
+  chmod +x /usr/bin/decypharr
 
-  # Build main binary
-  CGO_ENABLED=0 go build -trimpath \
-    -ldflags="-w -s -X github.com/sirrobot01/debrid-blackhole/pkg/version.Version=${VERSION} -X github.com/sirrobot01/debrid-blackhole/pkg/version.Channel=${CHANNEL}" \
-    -o /usr/bin/blackhole
-
-  # Build healthcheck
-  CGO_ENABLED=0 go build -trimpath -ldflags="-w -s" \
-    -o /usr/bin/healthcheck cmd/healthcheck/main.go
-
-  # Set permissions
-  chown nonroot:nonroot /usr/bin/blackhole /usr/bin/healthcheck
-  chmod +x /usr/bin/blackhole /usr/bin/healthcheck
-
-  systemctl restart decypharr
+  # Start service
+  systemctl start decypharr
 
   msg_info "Cleaning up"
-  rm -rf /tmp/debrid-blackhole
+  rm -f /tmp/decypharr_Linux_x86_64.tar.gz
   msg_ok "Updated $APP LXC"
   exit
 }
