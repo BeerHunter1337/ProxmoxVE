@@ -24,7 +24,7 @@ function update_script() {
   check_container_storage
   check_container_resources
 
-  if [[ ! -d /app ]]; then
+  if [[ ! -d /opt/decypharr ]]; then
     msg_error "No ${APP} Installation Found!"
     exit
   fi
@@ -61,7 +61,7 @@ function update_script() {
   
   # Install binary
   mv decypharr /usr/bin/decypharr
-  chown nonroot:nonroot /usr/bin/decypharr
+  chown 1605:1605 /usr/bin/decypharr
   chmod +x /usr/bin/decypharr
 
   # Start service
